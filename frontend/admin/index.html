@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Bookings — Dr. Deleep Dental Care (Staff)</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F6F9F7; --surface:#FFFFFF; --ink:#0E2622; --ink-soft:#4A5F5A;
+    --teal-deep:#0B4F4A; --teal:#146D63; --mint:#57D9B7; --mint-pale:#E4F7F1;
+    --coral:#FF6A4D; --line:#DCEAE6;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Public Sans',sans-serif;line-height:1.5;}
+  header{background:var(--teal-deep);color:#fff;padding:22px 28px;}
+  header h1{font-family:'Fraunces',serif;font-size:20px;margin:0;}
+  header p{margin:4px 0 0;font-size:13px;color:rgba(255,255,255,0.7);font-family:'IBM Plex Mono',monospace;}
+  main{max-width:1100px;margin:0 auto;padding:28px;}
+  .gate{max-width:380px;margin:80px auto;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:32px;}
+  .gate h2{font-family:'Fraunces',serif;margin:0 0 6px;color:var(--teal-deep);}
+  .gate p{font-size:13.5px;color:var(--ink-soft);margin:0 0 18px;}
+  .gate input{width:100%;padding:11px 13px;border:1.5px solid var(--line);border-radius:9px;font-size:14.5px;margin-bottom:12px;}
+  .gate button, .toolbar button, .btn{
+    background:var(--coral);color:#fff;border:none;border-radius:9px;padding:11px 16px;
+    font-weight:600;font-size:14px;cursor:pointer;font-family:'Public Sans',sans-serif;
+  }
+  .gate .error{color:#B23A22;font-size:13px;margin:-6px 0 12px;display:none;}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px;}
+  .toolbar input, .toolbar select{padding:9px 11px;border:1.5px solid var(--line);border-radius:8px;font-size:13.5px;}
+  .toolbar .ghost{background:var(--mint-pale);color:var(--teal-deep);}
+  table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;font-size:13.5px;}
+  th,td{padding:12px 14px;text-align:left;border-bottom:1px solid var(--line);}
+  th{background:var(--mint-pale);color:var(--teal-deep);font-size:11.5px;text-transform:uppercase;letter-spacing:0.04em;}
+  tr:last-child td{border-bottom:none;}
+  .status-pill{font-family:'IBM Plex Mono',monospace;font-size:11px;padding:3px 9px;border-radius:999px;display:inline-block;}
+  .status-pending{background:#FFF3E0;color:#B9660A;}
+  .status-confirmed{background:var(--mint-pale);color:var(--teal-deep);}
+  .status-cancelled{background:#FDEDEA;color:#B23A22;}
+  .status-completed{background:#E7EEFB;color:#2C4A8A;}
+  select.status-select{border:1px solid var(--line);border-radius:6px;padding:5px 7px;font-size:12.5px;}
+  .empty, .loading{padding:40px;text-align:center;color:var(--ink-soft);}
+  .hidden{display:none;}
+</style>
+</head>
+<body>
+
+<div id="gateView" class="gate">
+  <h2>Staff sign-in</h2>
+  <p>Enter the admin key from the backend's <code>.env</code> file (ADMIN_API_KEY).</p>
+  <input type="password" id="adminKeyInput" placeholder="Admin key" autocomplete="off">
+  <div class="error" id="gateError">That key was rejected. Check ADMIN_API_KEY in the backend.</div>
+  <button id="gateSubmit">View bookings</button>
+</div>
+
+<div id="dashboardView" class="hidden">
+  <header>
+    <h1>Dr. Deleep Dental Care — Bookings</h1>
+    <p id="apiLabel"></p>
+  </header>
+  <main>
+    <div class="toolbar">
+      <input type="date" id="filterDate">
+      <select id="filterStatus">
+        <option value="">All statuses</option>
+        <option value="pending">Pending</option>
+        <option value="confirmed">Confirmed</option>
+        <option value="cancelled">Cancelled</option>
+        <option value="completed">Completed</option>
+      </select>
+      <button class="ghost" id="refreshBtn" type="button">Refresh</button>
+      <button class="ghost" id="signOutBtn" type="button">Sign out</button>
+    </div>
+    <div id="tableWrap">
+      <div class="loading">Loading bookings…</div>
+    </div>
+  </main>
+</div>
+
+<script>
+  // Point this at the same backend as the main site.
+  const API_BASE_URL = "http://localhost:4000";
+
+  const gateView = document.getElementById('gateView');
+  const dashboardView = document.getElementById('dashboardView');
+  const gateError = document.getElementById('gateError');
+  const apiLabel = document.getElementById('apiLabel');
+  const tableWrap = document.getElementById('tableWrap');
+
+  let adminKey = sessionStorage.getItem('dental_admin_key') || '';
+
+  apiLabel.textContent = `Connected to ${API_BASE_URL}`;
+
+  async function apiFetch(path, opts = {}) {
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+      ...opts,
+      headers: { ...(opts.headers || {}), 'x-admin-key': adminKey },
+    });
+    return res;
+  }
+
+  function statusClass(status) { return `status-pill status-${status}`; }
+
+  async function loadBookings() {
+    tableWrap.innerHTML = '<div class="loading">Loading bookings…</div>';
+    const date = document.getElementById('filterDate').value;
+    const status = document.getElementById('filterStatus').value;
+    const params = new URLSearchParams();
+    if (date) params.set('date', date);
+    if (status) params.set('status', status);
+
+    try {
+      const res = await apiFetch(`/api/admin/bookings?${params.toString()}`);
+      if (res.status === 401) {
+        showGate(true);
+        return;
+      }
+      const data = await res.json();
+      renderTable(data.bookings || []);
+    } catch (err) {
+      tableWrap.innerHTML = `<div class="empty">Could not reach the backend at ${API_BASE_URL}. Is the server running?</div>`;
+    }
+  }
+
+  function renderTable(bookings) {
+    if (!bookings.length) {
+      tableWrap.innerHTML = '<div class="empty">No bookings match this filter.</div>';
+      return;
+    }
+    const rows = bookings.map(b => `
+      <tr data-id="${b.id}">
+        <td>${b.date}<br><span style="color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;font-size:12px;">${b.time}</span></td>
+        <td>${escapeHtml(b.name)}<br><a href="tel:${b.phone}" style="color:var(--teal);text-decoration:none;">${escapeHtml(b.phone)}</a></td>
+        <td>${escapeHtml(b.service)}</td>
+        <td>${escapeHtml(b.notes || '—')}</td>
+        <td><span class="${statusClass(b.status)}">${b.status}</span></td>
+        <td>
+          <select class="status-select" data-id="${b.id}">
+            ${['pending','confirmed','cancelled','completed'].map(s => `<option value="${s}" ${s===b.status?'selected':''}>${s}</option>`).join('')}
+          </select>
+        </td>
+      </tr>`).join('');
+
+    tableWrap.innerHTML = `
+      <table>
+        <thead><tr><th>When</th><th>Patient</th><th>Service</th><th>Notes</th><th>Status</th><th>Update</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+
+    tableWrap.querySelectorAll('.status-select').forEach(sel => {
+      sel.addEventListener('change', async () => {
+        const id = sel.dataset.id;
+        const status = sel.value;
+        sel.disabled = true;
+        try {
+          await apiFetch(`/api/admin/bookings/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status }),
+          });
+          loadBookings();
+        } catch (err) {
+          alert('Could not update booking status.');
+          sel.disabled = false;
+        }
+      });
+    });
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function showGate(withError) {
+    gateView.classList.remove('hidden');
+    dashboardView.classList.add('hidden');
+    gateError.style.display = withError ? 'block' : 'none';
+  }
+  function showDashboard() {
+    gateView.classList.add('hidden');
+    dashboardView.classList.remove('hidden');
+    loadBookings();
+  }
+
+  document.getElementById('gateSubmit').addEventListener('click', () => {
+    adminKey = document.getElementById('adminKeyInput').value.trim();
+    if (!adminKey) return;
+    sessionStorage.setItem('dental_admin_key', adminKey);
+    showDashboard();
+  });
+  document.getElementById('signOutBtn').addEventListener('click', () => {
+    sessionStorage.removeItem('dental_admin_key');
+    adminKey = '';
+    showGate(false);
+  });
+  document.getElementById('refreshBtn').addEventListener('click', loadBookings);
+  document.getElementById('filterDate').addEventListener('change', loadBookings);
+  document.getElementById('filterStatus').addEventListener('change', loadBookings);
+
+  if (adminKey) showDashboard(); else showGate(false);
+</script>
+
+</body>
+</html>
