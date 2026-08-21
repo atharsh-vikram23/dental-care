@@ -1,29 +1,10 @@
-# Dr. Deleep Dental Care — Full-Stack Website
+Dr. Deleep Dental Care is a full-stack dental clinic website designed to provide an easy online appointment booking experience.
+The website allows patients to explore dental services, check available appointment slots, and book consultations online.
 
-A complete, self-hostable website for the clinic: a public booking site, a
-Node.js/Express API, a MySQL database, and a small staff dashboard for
-managing appointment requests.
 
-```
-dr-deleep-dental/
-├── frontend/
-│   ├── index.html        # Public site (services, booking form, FAQ, etc.)
-│   └── admin/index.html  # Staff dashboard — view & update bookings
-├── backend/
-│   ├── server.js         # Express app entry point
-│   ├── src/
-│   │   ├── config/        # DB pool + clinic hours/slot config
-│   │   ├── controllers/    # Business logic per resource
-│   │   ├── middleware/     # Admin API-key auth
-│   │   ├── routes/         # /api/services, /api/slots, /api/bookings, /api/admin
-│   │   └── db/init.js      # One-command DB setup (alternative to the mysql CLI)
-│   ├── db/
-│   │   ├── schema.sql      # Tables: services, bookings, clinic_hours
-│   │   └── seed.sql        # The clinic's 15 preventive services
-│   ├── package.json
-│   └── .env.example
-└── README.md
-```
+
+
+
 
 ## What it does
 
